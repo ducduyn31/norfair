@@ -1,4 +1,6 @@
 import math
+import copy
+import pickle
 from typing import Callable, List, Optional, Sequence
 
 import numpy as np
@@ -18,6 +20,8 @@ class Tracker:
         initialization_delay: Optional[int] = None,
         detection_threshold: float = 0,
         point_transience: int = 4,
+        store_object_history: bool = False,
+        input_object_history_path: str = ""
     ):
         self.tracked_objects: Sequence["TrackedObject"] = []
         self.distance_function = distance_function
@@ -43,10 +47,41 @@ class Tracker:
         self.point_transience = point_transience
         TrackedObject.count = 0
 
+
+        if input_object_history_path != "":
+            self.object_history = pickle.load(open(input_object_history_path, "rb"))
+            self.frame_counter = 0
+
+        self.store_object_history = store_object_history
+        if store_object_history:
+            self.object_history = []
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        next_objects = self.object_history[self.frame_counter]
+        self.frame_counter += 1
+        return next_objects
+
+    def get_next_objects(self):
+        try:
+            next_objects = self.object_history[self.frame_counter]
+            self.frame_counter += 1
+            return next_objects
+        except IndexError:
+            raise StopIteration
+
+    def save_object_history(self, output_path):
+        pickle.dump(self.object_history, open(output_path, "wb"))
+
     def update(self, detections: Optional[List["Detection"]] = None, period: int = 1):
         self.period = period
 
         # Remove stale trackers and make candidate object real if it has hit inertia
+
+        if self.store_object_history:
+            self.object_history.extend([o for o in self.tracked_objects if not o.has_inertia])
         self.tracked_objects = [o for o in self.tracked_objects if o.has_inertia]
 
         # Update tracker
@@ -77,7 +112,12 @@ class Tracker:
                 )
             )
 
-        return [p for p in self.tracked_objects if not p.is_initializing]
+        final_objects = [p for p in self.tracked_objects if not p.is_initializing]
+
+        # if self.store_object_history:
+        #     self.object_history.append(copy.deepcopy(final_objects))
+
+        return final_objects
 
     def update_objects_in_place(
         self,
@@ -230,6 +270,9 @@ class TrackedObject:
         TrackedObject.initializing_count += 1
         self.setup_filter(initial_detection.points)
         self.detected_at_least_once_points = np.array([False] * self.num_points)
+        initial_detection.age = self.age
+        self.past_detections: Sequence["Detection"] = [initial_detection]
+        self.age_at_last_added_detection = self.age
 
     def setup_filter(self, initial_detection: np.array):
         initial_detection = validate_points(initial_detection)
@@ -301,6 +344,7 @@ class TrackedObject:
 
     def hit(self, detection: "Detection", period: int = 1):
         points = validate_points(detection.points)
+        self.conditionally_add_to_past_detections_generic(detection)
 
         self.last_detection = detection
         if self.hit_counter < self.hit_inertia_max:
@@ -358,6 +402,30 @@ class TrackedObject:
             self.last_distance,
             self.initializing_id,
         )
+
+    # def conditionally_add_to_past_detections(self, detection):
+    #     if len(self.past_detections) < 3:
+    #         detection.age = self.age  # for debugging
+    #         self.past_detections.append(detection)
+    #         self.age_at_last_added_detection = self.age
+    #     elif self.age > self.age_at_last_added_detection * 2:
+    #         detection.age = self.age  # for debugging
+    #         self.past_detections[0] = self.past_detections[1]
+    #         self.past_detections[1] = self.past_detections[2]
+    #         self.past_detections[2] = detection
+    #         self.age_at_last_added_detection = self.age
+
+    past_detection_size = 10
+    def conditionally_add_to_past_detections_generic(self, detection):
+        if len(self.past_detections) < TrackedObject.past_detection_size:
+            detection.age = self.age
+            self.past_detections.append(detection)
+            # self.age_at_last_added_detection = self.age
+        elif self.age >= self.past_detections[0].age * TrackedObject.past_detection_size:
+            self.past_detections.pop(0)
+            detection.age = self.age
+            self.past_detections.append(detection)
+            # self.age_at_last_added_detection = self.age
 
 
 class Detection:
