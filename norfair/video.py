@@ -33,12 +33,12 @@ class Video:
         self.output_video: Optional[cv2.VideoWriter] = None
 
         # Input validation
-        #if (input_path is None and camera is None) or (
-        #    input_path is not None and camera is not None
-        #):
-        #    raise ValueError(
-        #        "You must set either 'camera' or 'input_path' arguments when setting 'Video' class"
-        #    )
+        if (input_path is None and camera is None) or (
+           input_path is not None and camera is not None
+        ):
+           raise ValueError(
+               "You must set either 'camera' or 'input_path' arguments when setting 'Video' class"
+           )
         if camera is not None and type(camera) is not int:
             raise ValueError(
                 "Argument 'camera' refers to the device-id of your camera, and must be an int. Setting it to 0 usually works if you don't know the id."
