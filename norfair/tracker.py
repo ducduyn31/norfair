@@ -1,4 +1,5 @@
 import math
+import uuid
 from typing import Callable, List, Optional, Sequence
 
 import numpy as np
@@ -235,7 +236,7 @@ class TrackedObject:
         self.last_detection: "Detection" = initial_detection
         self.age: int = 0
         self.is_initializing_flag: bool = True
-        self.id: Optional[int] = None
+        self.id: Optional[str] = None
         self.initializing_id: int = (
             TrackedObject.initializing_count
         )  # Just for debugging
@@ -267,7 +268,7 @@ class TrackedObject:
         ):
             self.is_initializing_flag = False
             TrackedObject.count += 1
-            self.id = TrackedObject.count
+            self.id = str(uuid.uuidv4())
         return self.is_initializing_flag
 
     @property
