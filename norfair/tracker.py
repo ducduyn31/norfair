@@ -268,7 +268,7 @@ class TrackedObject:
         ):
             self.is_initializing_flag = False
             TrackedObject.count += 1
-            self.id = str(uuid.uuidv4())
+            self.id = str(uuid.uuid4())
         return self.is_initializing_flag
 
     @property
